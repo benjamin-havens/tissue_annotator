@@ -88,7 +88,7 @@ def find_folders(root):
 
 def sorted_tifs(folder):
     """Return list of .tif filepaths sorted by 3-digit frame number."""
-    pattern = re.compile(r"(\d{3})\.tif$", re.IGNORECASE)
+    pattern = re.compile(r"(\d{3})(?:_oct)?\.tif$", re.IGNORECASE)
     files = []
     for fn in os.listdir(folder):
         m = pattern.search(fn)
@@ -295,7 +295,9 @@ class TissueAnnotator(tk.Tk):
             else ["disabled"]
         )
         # update frame number and path display
-        match = re.search(r"(\d{3})\.tif$", os.path.basename(path), re.IGNORECASE)
+        match = re.search(
+            r"(\d{3})(?:_oct)?\.tif$", os.path.basename(path), re.IGNORECASE
+        )
         frame_no = match.group(1) if match else "N/A"
         self.frame_info.config(text=f"Frame number: {frame_no}")
         self.path_info.config(text=f"Path: {path}")
