@@ -150,9 +150,31 @@ class TissueAnnotator(tk.Tk):
         self.load_folder()
 
     def build_ui(self):
-        # path label
-        self.path_lbl = ttk.Label(self, text="", font=("Arial", 12))
-        self.path_lbl.pack(pady=5)
+        # detailed information display
+        info_frame = ttk.LabelFrame(self, text="Current image info")
+        info_frame.pack(fill="x", padx=10, pady=5)
+
+        self.root_info = ttk.Label(info_frame, text="Root folder: ")
+        self.root_info.grid(row=0, column=0, sticky="w")
+
+        self.subject_info = ttk.Label(info_frame, text="Subject folder: ")
+        self.subject_info.grid(row=1, column=0, sticky="w")
+
+        self.site_info = ttk.Label(info_frame, text="Site folder: ")
+        self.site_info.grid(row=2, column=0, sticky="w")
+
+        self.frame_info = ttk.Label(info_frame, text="Frame number: ")
+        self.frame_info.grid(row=3, column=0, sticky="w")
+
+        self.path_info = ttk.Label(info_frame, text="Path: ")
+        self.path_info.grid(row=4, column=0, sticky="w")
+
+        # drop‑down menu to jump to any folder
+        self.folder_combo = ttk.Combobox(
+            self, values=self.folders, state="readonly", width=60
+        )
+        self.folder_combo.pack(pady=5)
+        self.folder_combo.bind("<<ComboboxSelected>>", self.on_folder_combo)
 
         # image frame
         img_frame = ttk.Frame(self)
@@ -215,7 +237,19 @@ class TissueAnnotator(tk.Tk):
         folder_abs = self.folders_abs[self.idx]
         folder_sub = os.path.relpath(folder_abs, self.root_dir)
         folder_key = folder_rel
-        self.path_lbl.config(text=folder_rel)
+        # update info labels for root/subject/site
+        parts = os.path.relpath(folder_abs, self.root_dir).split(os.sep)
+        subject = parts[0] if len(parts) >= 1 else "N/A"
+        site = parts[1] if len(parts) >= 2 else "N/A"
+
+        self.root_info.config(text=f"Root folder: {self.root_name}")
+        self.subject_info.config(text=f"Subject folder: {subject}")
+        self.site_info.config(text=f"Site folder: {site}")
+        self.frame_info.config(text="Frame number: ")
+        self.path_info.config(text="Path: ")
+
+        # keep drop‑down in sync
+        self.folder_combo.current(self.idx)
         # load images
         self.image_paths = sorted_tifs(folder_abs)
         self.image_idx = 0
@@ -260,6 +294,11 @@ class TissueAnnotator(tk.Tk):
             if self.image_idx < len(self.image_paths) - 1
             else ["disabled"]
         )
+        # update frame number and path display
+        match = re.search(r"(\d{3})\.tif$", os.path.basename(path), re.IGNORECASE)
+        frame_no = match.group(1) if match else "N/A"
+        self.frame_info.config(text=f"Frame number: {frame_no}")
+        self.path_info.config(text=f"Path: {path}")
 
     def change_image(self, step):
         """Move step frames forward/backward, clamped to valid range."""
@@ -286,6 +325,21 @@ class TissueAnnotator(tk.Tk):
         """Scroll wheel moves through frames quickly."""
         step = -1 if event.delta > 0 else 1
         self.change_image(step)
+
+    def on_folder_combo(self, event):
+        """Jump to the selected folder without saving current annotations."""
+        sel = self.folder_combo.get()
+        if not sel:
+            return
+        try:
+            new_idx = self.folders.index(sel)
+        except ValueError:
+            return
+        if new_idx == self.idx:
+            return
+        # treat current folder as skipped
+        self.idx = new_idx
+        self.load_folder()
 
     def next_folder(self):
         # gather and save
