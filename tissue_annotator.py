@@ -1,33 +1,33 @@
 """
-TissueAnnotator – GUI tool for manual tissue‑type labelling
+TissueAnnotator - GUI tool for manual tissue-type labelling
 ==========================================================
 
 Purpose
 -------
-Provide a zero‑config desktop application (Tkinter) that lets a user rapidly
+Provide a zero-config desktop application (Tkinter) that lets a user rapidly
 review microscopy *.tif* image sequences organised inside a root directory and
 record which tissue types (and optional tumour/normal context) are present in
-each *folder* (either a patient folder containing images, or a site sub‑folder).
+each *folder* (either a patient folder containing images, or a site sub-folder).
 
 Main workflow
 -------------
 1.  User is prompted to pick the *root* directory.
 2.  The program discovers every labellable folder:
       • If a patient folder contains .tif files directly, that folder is used.
-      • Otherwise each site sub‑folder containing .tif files is used.
+      • Otherwise each site sub-folder containing .tif files is used.
 3.  For each folder the GUI shows:
-      • A scrollable/slider‑controlled preview of all frames (sorted by their
-        3‑digit suffix).
-      • Check‑boxes for tissue types (list editable at top of file).
-      • A master checkbox that enables four tumour/normal check‑boxes.
+      • A scrollable/slider-controlled preview of all frames (sorted by their
+        3-digit suffix).
+      • Check-boxes for tissue types (list editable at top of file).
+      • A master checkbox that enables four tumour/normal check-boxes.
 4.  User ticks the appropriate boxes and clicks **Next Folder →** (or **Skip
     Folder**) to advance.  Annotations are written immediately to *annotations.csv*.
 5.  The CSV carries two location fields:
-      *root* — the selected root directory’s basename
+      *root* — the selected root directory's basename
       *folder* — the relative path *inside* the root
    plus one column per tissue label.
 
-The GUI can be closed and reopened any time; previous annotations are pre‑loaded.
+The GUI can be closed and reopened any time; previous annotations are pre-loaded.
 
 Running
 -------
@@ -161,7 +161,7 @@ class TissueAnnotator(tk.Tk):
         self.prev_btn.grid(row=0, column=0)
         self.img_lbl = ttk.Label(img_frame)
         self.img_lbl.grid(row=0, column=1)
-        # allow mouse‑wheel scrolling directly on the image
+        # allow mouse-wheel scrolling directly on the image
         self.img_lbl.bind("<MouseWheel>", self.on_mousewheel)
         self.next_btn = ttk.Button(img_frame, text="Next ▶", command=self.next_image)
         self.next_btn.grid(row=0, column=2)
