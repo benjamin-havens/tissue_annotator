@@ -67,23 +67,23 @@ THUMBNAIL_SIZE = (800, 600)  # max display size
 
 # === UTILITIES ===
 def find_folders(root):
-    """Walk root; for each subject, if it has .tif files use it,
-    else find its subdirs with .tif and use each."""
+    """Recursively walk *root* and collect every directory that directly
+    contains one or more *.tif* files. If a directory qualifies, its
+    sub‑directories are not inspected further so each set of frames is
+    treated as its own site, even when nested multiple levels deep."""
     folders = []
-    for sub in sorted(os.listdir(root)):
-        p = os.path.join(root, sub)
-        if not os.path.isdir(p):
+    for subject in sorted(os.listdir(root)):
+        subj_path = os.path.join(root, subject)
+        if not os.path.isdir(subj_path):
             continue
-        tif_files = [f for f in os.listdir(p) if f.lower().endswith(".tif")]
-        if tif_files:
-            folders.append(p)
-        else:
-            for site in sorted(os.listdir(p)):
-                sitep = os.path.join(p, site)
-                if os.path.isdir(sitep):
-                    if any(f.lower().endswith(".tif") for f in os.listdir(sitep)):
-                        folders.append(sitep)
-    return folders
+
+        for dirpath, dirnames, filenames in os.walk(subj_path):
+            dirnames.sort()  # ensure deterministic traversal order
+            if any(f.lower().endswith(".tif") for f in filenames):
+                folders.append(dirpath)
+                # Skip descendants to avoid recording nested duplicates
+                dirnames[:] = []
+    return sorted(folders)
 
 
 def sorted_tifs(folder):
