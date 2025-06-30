@@ -56,6 +56,7 @@ TISSUE_TYPES = [
     "lymphatic",
     "blood vessel",
 ]
+TISSUE_TYPES = [f"TISSUE_{t}" for t in TISSUE_TYPES]
 CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
 # Classifications are defined by current standard of care.
 # METHODS: Tissue is removed from patient.
@@ -64,6 +65,7 @@ CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
 # "normal" = healthy, non-cancerous tissue
 # "normal_adjacent" = normal tissue that is adjacent to to tumor
 # "tumor" = cancerous tissue
+CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 CSV_PATH = "annotations.csv"
 THUMBNAIL_SIZE = (800, 600)  # max display size
 
