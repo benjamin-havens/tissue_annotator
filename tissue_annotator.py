@@ -50,14 +50,16 @@ import numpy as np
 
 # === CONFIGURATION ===
 TISSUE_TYPES = [
-    "tumor",
-    "normal connective, fibrous",
-    "normal connective, fatty",
+    "ANNOTATION_tumor",
+    "dense",
+    "fatty",
     "lymphatic",
+    "muscle",
     "blood vessel",
+    "artifact",
+    "fibrotic",
 ]
-TISSUE_TYPES = [f"TISSUE_{t}" for t in TISSUE_TYPES]
-CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
+CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "SURGEON_tumor"]
 # Classifications are defined by current standard of care.
 # METHODS: Tissue is removed from patient.
 # In a cancer patient, tissue is labeled as "normal_adjacent" or "tumor" based on gross morphology
@@ -65,7 +67,6 @@ CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
 # "normal" = healthy, non-cancerous tissue
 # "normal_adjacent" = normal tissue that is adjacent to to tumor
 # "tumor" = cancerous tissue
-CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 CSV_PATH = "annotations.csv"
 THUMBNAIL_SIZE = (800, 600)  # max display size
 
