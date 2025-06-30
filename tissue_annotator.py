@@ -46,6 +46,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 import pandas as pd
+import numpy as np
 
 # === CONFIGURATION ===
 TISSUE_TYPES = [
@@ -55,7 +56,6 @@ TISSUE_TYPES = [
     "lymphatic",
     "blood vessel",
 ]
-TISSUE_TYPES = [f"TISSUE_{t}" for t in TISSUE_TYPES]
 CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
 # Classifications are defined by current standard of care.
 # METHODS: Tissue is removed from patient.
@@ -64,7 +64,6 @@ CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
 # "normal" = healthy, non-cancerous tissue
 # "normal_adjacent" = normal tissue that is adjacent to to tumor
 # "tumor" = cancerous tissue
-CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 CSV_PATH = "annotations.csv"
 THUMBNAIL_SIZE = (800, 600)  # max display size
 
@@ -150,6 +149,9 @@ class TissueAnnotator(tk.Tk):
         self.tumor_master = tk.BooleanVar()
         self.tumor_vars = {t: tk.IntVar() for t in CLINICAL_CLASSIFICATION}
 
+        # colour‑scale mode: "default" or "log"
+        self.scale_mode = tk.StringVar(value="default")
+
         self.build_ui()
         self.load_folder()
 
@@ -195,6 +197,24 @@ class TissueAnnotator(tk.Tk):
         # slider to jump through frames quickly
         self.scale = ttk.Scale(self, orient="horizontal", command=self.on_scale)
         self.scale.pack(fill="x", padx=10, pady=5)
+
+        # colour‑scaling options
+        color_frame = ttk.LabelFrame(self, text="Color Scaling")
+        color_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Radiobutton(
+            color_frame,
+            text="Default",
+            variable=self.scale_mode,
+            value="default",
+            command=self.show_image,
+        ).grid(row=0, column=0, sticky="w", padx=5)
+        ttk.Radiobutton(
+            color_frame,
+            text="Log",
+            variable=self.scale_mode,
+            value="log",
+            command=self.show_image,
+        ).grid(row=0, column=1, sticky="w", padx=5)
 
         # tissue checkboxes
         tissue_frame = ttk.LabelFrame(self, text="Tissue Types")
@@ -288,6 +308,18 @@ class TissueAnnotator(tk.Tk):
             return
         path = self.image_paths[self.image_idx]
         img = Image.open(path)
+
+        # apply optional log colour scaling
+        if self.scale_mode.get() == "log":
+            arr = np.array(img).astype(np.float32)
+
+            # handle both grayscale (H,W) and colour (H,W,3) images
+            max_val = arr.max() if arr.max() > 0 else 1.0
+            arr = np.log1p(arr) / np.log1p(max_val) * 255.0
+            arr = arr.astype(np.uint8)
+
+            img = Image.fromarray(arr)
+
         img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
         self.photo = ImageTk.PhotoImage(img)
         self.img_lbl.config(image=self.photo)
