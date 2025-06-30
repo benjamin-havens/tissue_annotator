@@ -49,18 +49,22 @@ import pandas as pd
 
 # === CONFIGURATION ===
 TISSUE_TYPES = [
-    "adipose",
-    "adrenal",
-    "bone",
-    "cartilage",
-    "connective",
-    "epithelium",
-    "lymphoid",
-    "muscle",
-    "nervous",
-    "vascular",
+    "tumor",
+    "normal connective, fibrous",
+    "normal connective, fatty",
+    "lymphatic",
+    "blood vessel",
 ]
-TUMOR_LABELS = ["normal", "normal_adjacent", "tumor_adjacent", "tumor"]
+TISSUE_TYPES = [f"TISSUE_{t}" for t in TISSUE_TYPES]
+CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "tumor"]
+# Classifications are defined by current standard of care.
+# METHODS: Tissue is removed from patient.
+# In a cancer patient, tissue is labeled as "normal_adjacent" or "tumor" based on gross morphology
+# (what it looks like with naked eye) and touch (firmer tissue indicate cancerous tissue).
+# "normal" = healthy, non-cancerous tissue
+# "normal_adjacent" = normal tissue that is adjacent to to tumor
+# "tumor" = cancerous tissue
+CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 CSV_PATH = "annotations.csv"
 THUMBNAIL_SIZE = (800, 600)  # max display size
 
@@ -69,7 +73,7 @@ THUMBNAIL_SIZE = (800, 600)  # max display size
 def find_folders(root):
     """Recursively walk *root* and collect every directory that directly
     contains one or more *.tif* files. If a directory qualifies, its
-    sub‑directories are not inspected further so each set of frames is
+    sub-directories are not inspected further so each set of frames is
     treated as its own site, even when nested multiple levels deep."""
     folders = []
     for subject in sorted(os.listdir(root)):
@@ -127,7 +131,7 @@ class TissueAnnotator(tk.Tk):
         if os.path.exists(CSV_PATH):
             self.df = pd.read_csv(CSV_PATH, dtype=str)
         else:
-            cols = ["key", "root", "folder"] + TISSUE_TYPES + TUMOR_LABELS
+            cols = ["key", "root", "folder"] + TISSUE_TYPES + CLINICAL_CLASSIFICATION
             self.df = pd.DataFrame(columns=cols)
         # ensure a 'key' column (root + os.sep + folder) exists
         if "key" not in self.df.columns:
@@ -144,7 +148,7 @@ class TissueAnnotator(tk.Tk):
         # vars for checkboxes
         self.tissue_vars = {t: tk.IntVar() for t in TISSUE_TYPES}
         self.tumor_master = tk.BooleanVar()
-        self.tumor_vars = {t: tk.IntVar() for t in TUMOR_LABELS}
+        self.tumor_vars = {t: tk.IntVar() for t in CLINICAL_CLASSIFICATION}
 
         self.build_ui()
         self.load_folder()
@@ -204,13 +208,13 @@ class TissueAnnotator(tk.Tk):
         tumor_frame.pack(fill="x", padx=10, pady=5)
         master_cb = ttk.Checkbutton(
             tumor_frame,
-            text="Enable tumor/normal labels",
+            text="Enable clinical classification",
             variable=self.tumor_master,
             command=self.toggle_tumor,
         )
         master_cb.grid(row=0, column=0, columnspan=4, sticky="w", pady=2)
         self.tumor_cbs = []
-        for i, t in enumerate(TUMOR_LABELS):
+        for i, t in enumerate(CLINICAL_CLASSIFICATION):
             cb = ttk.Checkbutton(tumor_frame, text=t, variable=self.tumor_vars[t])
             cb.grid(row=1, column=i, sticky="w", padx=5)
             self.tumor_cbs.append(cb)
@@ -267,9 +271,9 @@ class TissueAnnotator(tk.Tk):
                 self.tissue_vars[t].set(int(row[t]) if pd.notna(row[t]) else 0)
             # tumors
             # master on if any label is numeric
-            has_vals = any(pd.notna(row[t]) for t in TUMOR_LABELS)
+            has_vals = any(pd.notna(row[t]) for t in CLINICAL_CLASSIFICATION)
             self.tumor_master.set(has_vals)
-            for t in TUMOR_LABELS:
+            for t in CLINICAL_CLASSIFICATION:
                 self.tumor_vars[t].set(int(row[t]) if pd.notna(row[t]) else 0)
         else:
             for v in self.tissue_vars.values():
@@ -355,10 +359,10 @@ class TissueAnnotator(tk.Tk):
             data[t] = self.tissue_vars[t].get()
         # tumors
         if self.tumor_master.get():
-            for t in TUMOR_LABELS:
+            for t in CLINICAL_CLASSIFICATION:
                 data[t] = self.tumor_vars[t].get()
         else:
-            for t in TUMOR_LABELS:
+            for t in CLINICAL_CLASSIFICATION:
                 data[t] = pd.NA
         # update df
         self.df.loc[folder_rel] = data
