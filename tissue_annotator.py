@@ -50,7 +50,7 @@ import numpy as np
 
 # === CONFIGURATION ===
 TISSUE_TYPES = [
-    "ANNOTATION_tumor",
+    "tumor",
     "dense",
     "fatty",
     "lymphatic",
@@ -59,14 +59,25 @@ TISSUE_TYPES = [
     "artifact",
     "fibrotic",
 ]
-CLINICAL_CLASSIFICATION = ["normal", "normal_adjacent", "SURGEON_tumor"]
+CLINICAL_CLASSIFICATION = [
+    "normal",  # healthy, non-cancerous tissue
+    "normal_adjacent",  # normal tissue that is adjacent to tumor
+    "tumor",  # cancerous tissue
+]
+CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 # Classifications are defined by current standard of care.
 # METHODS: Tissue is removed from patient.
 # In a cancer patient, tissue is labeled as "normal_adjacent" or "tumor" based on gross morphology
 # (what it looks like with naked eye) and touch (firmer tissue indicate cancerous tissue).
-# "normal" = healthy, non-cancerous tissue
-# "normal_adjacent" = normal tissue that is adjacent to to tumor
-# "tumor" = cancerous tissue
+OTHER_ATTRIBUTES = [
+    "artifact",
+    "missing_sheath",
+    "dark",
+    "unidentified_structure",
+    "exclude",
+]
+# Column name for free‑text comments
+COMMENT_COLUMN = "comments"
 CSV_PATH = "annotations.csv"
 THUMBNAIL_SIZE = (800, 600)  # max display size
 
@@ -132,8 +143,16 @@ class TissueAnnotator(tk.Tk):
         # load or init CSV
         if os.path.exists(CSV_PATH):
             self.df = pd.read_csv(CSV_PATH, dtype=str)
+            if COMMENT_COLUMN not in self.df.columns:
+                self.df[COMMENT_COLUMN] = pd.NA
         else:
-            cols = ["key", "root", "folder"] + TISSUE_TYPES + CLINICAL_CLASSIFICATION
+            cols = (
+                ["key", "root", "folder"]
+                + TISSUE_TYPES
+                + CLINICAL_CLASSIFICATION
+                + OTHER_ATTRIBUTES
+                + [COMMENT_COLUMN]
+            )
             self.df = pd.DataFrame(columns=cols)
         # ensure a 'key' column (root + os.sep + folder) exists
         if "key" not in self.df.columns:
@@ -151,6 +170,7 @@ class TissueAnnotator(tk.Tk):
         self.tissue_vars = {t: tk.IntVar() for t in TISSUE_TYPES}
         self.tumor_master = tk.BooleanVar()
         self.tumor_vars = {t: tk.IntVar() for t in CLINICAL_CLASSIFICATION}
+        self.other_vars = {t: tk.IntVar() for t in OTHER_ATTRIBUTES}
 
         # colour‑scale mode: "default" or "log"
         self.scale_mode = tk.StringVar(value="default")
@@ -159,9 +179,12 @@ class TissueAnnotator(tk.Tk):
         self.load_folder()
 
     def build_ui(self):
-        # detailed information display
-        info_frame = ttk.LabelFrame(self, text="Current image info")
-        info_frame.pack(fill="x", padx=10, pady=5)
+        # detailed information display + copy‑path button
+        info_container = ttk.Frame(self)
+        info_container.pack(fill="x", padx=10, pady=5)
+
+        info_frame = ttk.Frame(info_container)
+        info_frame.pack(side="left", fill="x", expand=True)
 
         self.root_info = ttk.Label(info_frame, text="Root folder: ")
         self.root_info.grid(row=0, column=0, sticky="w")
@@ -175,8 +198,19 @@ class TissueAnnotator(tk.Tk):
         self.frame_info = ttk.Label(info_frame, text="Frame number: ")
         self.frame_info.grid(row=3, column=0, sticky="w")
 
-        self.path_info = ttk.Label(info_frame, text="Path: ")
+        self.path_info = ttk.Label(
+            info_frame,
+            text="Path: ",
+            anchor="w",
+            justify="left",
+            wraplength=800,  # pixels – long paths will wrap instead of stretching the window
+        )
         self.path_info.grid(row=4, column=0, sticky="w")
+
+        # button to copy current image path to clipboard
+        ttk.Button(info_container, text="Copy path 📋", command=self.copy_path).pack(
+            side="left", padx=10
+        )
 
         # drop‑down menu to jump to any folder
         self.folder_combo = ttk.Combobox(
@@ -185,9 +219,15 @@ class TissueAnnotator(tk.Tk):
         self.folder_combo.pack(pady=5)
         self.folder_combo.bind("<<ComboboxSelected>>", self.on_folder_combo)
 
-        # image frame
-        img_frame = ttk.Frame(self)
-        img_frame.pack()
+        # image + colour‑scaling side‑by‑side
+        img_color_frame = ttk.Frame(self)
+        img_color_frame.pack(fill="x", padx=10, pady=5)
+
+        img_frame = ttk.Frame(img_color_frame)
+        img_frame.grid(row=0, column=0)
+        img_color_frame.grid_columnconfigure(
+            0, weight=1
+        )  # let the image column expand so img_frame sits centered
         self.prev_btn = ttk.Button(img_frame, text="◀ Prev", command=self.prev_image)
         self.prev_btn.grid(row=0, column=0)
         self.img_lbl = ttk.Label(img_frame)
@@ -197,38 +237,42 @@ class TissueAnnotator(tk.Tk):
         self.next_btn = ttk.Button(img_frame, text="Next ▶", command=self.next_image)
         self.next_btn.grid(row=0, column=2)
 
-        # slider to jump through frames quickly
-        self.scale = ttk.Scale(self, orient="horizontal", command=self.on_scale)
-        self.scale.pack(fill="x", padx=10, pady=5)
+        # colour‑scaling options placed to the right of the image
+        color_frame = ttk.LabelFrame(img_color_frame, text="Color Scaling")
+        color_frame.grid(row=0, column=1, sticky="e", padx=(5, 0))
 
-        # colour‑scaling options
-        color_frame = ttk.LabelFrame(self, text="Color Scaling")
-        color_frame.pack(fill="x", padx=10, pady=5)
         ttk.Radiobutton(
             color_frame,
             text="Default",
             variable=self.scale_mode,
             value="default",
             command=self.show_image,
-        ).grid(row=0, column=0, sticky="w", padx=5)
+        ).grid(row=0, column=0, sticky="", padx=5, pady=(2, 0))
+
         ttk.Radiobutton(
             color_frame,
             text="Log",
             variable=self.scale_mode,
             value="log",
             command=self.show_image,
-        ).grid(row=0, column=1, sticky="w", padx=5)
+        ).grid(row=1, column=0, sticky="w", padx=5, pady=(0, 2))
 
-        # tissue checkboxes
-        tissue_frame = ttk.LabelFrame(self, text="Tissue Types")
-        tissue_frame.pack(fill="x", padx=10, pady=5)
+        # slider to jump through frames quickly
+        self.scale = ttk.Scale(self, orient="horizontal", command=self.on_scale)
+        self.scale.pack(fill="x", padx=10, pady=5)
+
+        # container so Tissue Types (left) and Tumor / Normal (right) sit side‑by‑side
+        tt_frame = ttk.Frame(self)
+        tt_frame.pack(fill="x", padx=10, pady=5)
+
+        tissue_frame = ttk.LabelFrame(tt_frame, text="Tissue Types")
+        tissue_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
         for i, t in enumerate(TISSUE_TYPES):
             cb = ttk.Checkbutton(tissue_frame, text=t, variable=self.tissue_vars[t])
             cb.grid(row=i // 5, column=i % 5, sticky="w", padx=5)
 
-        # tumor/normal
-        tumor_frame = ttk.LabelFrame(self, text="Tumor / Normal")
-        tumor_frame.pack(fill="x", padx=10, pady=5)
+        tumor_frame = ttk.LabelFrame(tt_frame, text="Tumor / Normal")
+        tumor_frame.pack(side="left", fill="both", padx=(5, 0))
         master_cb = ttk.Checkbutton(
             tumor_frame,
             text="Enable clinical classification",
@@ -241,6 +285,22 @@ class TissueAnnotator(tk.Tk):
             cb = ttk.Checkbutton(tumor_frame, text=t, variable=self.tumor_vars[t])
             cb.grid(row=1, column=i, sticky="w", padx=5)
             self.tumor_cbs.append(cb)
+
+        # other attributes
+        other_frame = ttk.LabelFrame(self, text="Other Attributes")
+        other_frame.pack(fill="x", padx=10, pady=5)
+        self.other_cbs = []
+        for i, t in enumerate(OTHER_ATTRIBUTES):
+            cb = ttk.Checkbutton(other_frame, text=t, variable=self.other_vars[t])
+            cb.grid(row=1, column=i, sticky="w", padx=5)
+            self.other_cbs.append(cb)
+
+        # comments textbox within Other Attributes
+        comment_frame = ttk.LabelFrame(self, text="Comments")
+        comment_frame.pack(fill="x", padx=10, pady=5)
+
+        self.comment_text = tk.Text(comment_frame, height=2, wrap="word")
+        self.comment_text.pack(fill="x", expand=True, padx=5, pady=5)
 
         # next folder and skip folder buttons centered
         button_frame = ttk.Frame(self)
@@ -262,7 +322,6 @@ class TissueAnnotator(tk.Tk):
     def load_folder(self):
         folder_rel = self.folders[self.idx]  # includes root/
         folder_abs = self.folders_abs[self.idx]
-        folder_sub = os.path.relpath(folder_abs, self.root_dir)
         folder_key = folder_rel
         # update info labels for root/subject/site
         parts = os.path.relpath(folder_abs, self.root_dir).split(os.sep)
@@ -298,12 +357,22 @@ class TissueAnnotator(tk.Tk):
             self.tumor_master.set(has_vals)
             for t in CLINICAL_CLASSIFICATION:
                 self.tumor_vars[t].set(int(row[t]) if pd.notna(row[t]) else 0)
+            # other attributes
+            for t in OTHER_ATTRIBUTES:
+                self.other_vars[t].set(int(row[t]) if pd.notna(row[t]) else 0)
+            # comments
+            self.comment_text.delete("1.0", tk.END)
+            if pd.notna(row.get(COMMENT_COLUMN)):
+                self.comment_text.insert(tk.END, str(row[COMMENT_COLUMN]))
         else:
             for v in self.tissue_vars.values():
                 v.set(0)
             self.tumor_master.set(False)
             for v in self.tumor_vars.values():
                 v.set(0)
+            for v in self.other_vars.values():
+                v.set(0)
+            self.comment_text.delete("1.0", tk.END)
         self.toggle_tumor()
 
     def show_image(self):
@@ -399,6 +468,12 @@ class TissueAnnotator(tk.Tk):
         else:
             for t in CLINICAL_CLASSIFICATION:
                 data[t] = pd.NA
+        # other attributes
+        for t in OTHER_ATTRIBUTES:
+            data[t] = self.other_vars[t].get()
+        # comments
+        comment_val = self.comment_text.get("1.0", "end").strip()
+        data[COMMENT_COLUMN] = comment_val if comment_val else pd.NA
         # update df
         self.df.loc[folder_rel] = data
         # write CSV
@@ -421,6 +496,15 @@ class TissueAnnotator(tk.Tk):
         else:
             messagebox.showinfo("Done", "All folders processed.")
             self.destroy()
+
+    def copy_path(self):
+        """Copy the current image path to the system clipboard."""
+        if not self.image_paths:
+            return
+        path = self.image_paths[self.image_idx]
+        self.clipboard_clear()
+        self.clipboard_append(path)
+        self.update()  # keep clipboard after window closes
 
 
 if __name__ == "__main__":
