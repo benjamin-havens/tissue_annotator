@@ -56,7 +56,6 @@ TISSUE_TYPES = [
     "lymphatic",
     "muscle",
     "blood vessel",
-    "artifact",
     "fibrotic",
 ]
 CLINICAL_CLASSIFICATION = [
@@ -70,12 +69,12 @@ CLINICAL_CLASSIFICATION = [f"CLINICAL_{c}" for c in CLINICAL_CLASSIFICATION]
 # In a cancer patient, tissue is labeled as "normal_adjacent" or "tumor" based on gross morphology
 # (what it looks like with naked eye) and touch (firmer tissue indicate cancerous tissue).
 OTHER_ATTRIBUTES = [
-    "artifact",
-    "missing_sheath",
-    "dark",
-    "unidentified_structure",
-    "exclude",
-]
+    "artifact",  # Heavy/noticeable artifacts
+    "missing_sheath",  # Missing sheath artifact (bright line at top of image, used for calibrating some methods)
+    "dark",  # Not bright enough
+    "unidentified_structure",  # Clear structure that needs expert review
+    "exclude",  # Do not use to train models
+].sort()
 # Column name for free‑text comments
 COMMENT_COLUMN = "comments"
 CSV_PATH = "annotations.csv"
