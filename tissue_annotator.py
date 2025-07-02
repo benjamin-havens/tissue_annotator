@@ -271,7 +271,7 @@ class TissueAnnotator(tk.Tk):
             cb = ttk.Checkbutton(tissue_frame, text=t, variable=self.tissue_vars[t])
             cb.grid(row=i // 5, column=i % 5, sticky="w", padx=5)
 
-        tumor_frame = ttk.LabelFrame(tt_frame, text="Tumor / Normal")
+        tumor_frame = ttk.LabelFrame(tt_frame, text="Clinical Classification")
         tumor_frame.pack(side="left", fill="both", padx=(5, 0))
         master_cb = ttk.Checkbutton(
             tumor_frame,
