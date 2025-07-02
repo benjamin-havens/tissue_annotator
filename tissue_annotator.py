@@ -74,7 +74,8 @@ OTHER_ATTRIBUTES = [
     "dark",  # Not bright enough
     "unidentified_structure",  # Clear structure that needs expert review
     "exclude",  # Do not use to train models
-].sort()
+]
+OTHER_ATTRIBUTES.sort()
 # Column name for free‑text comments
 COMMENT_COLUMN = "comments"
 CSV_PATH = "annotations.csv"
