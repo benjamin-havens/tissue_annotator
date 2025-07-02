@@ -54,6 +54,7 @@ The navigation methods are:
 This was developed in order to facilitate annotation on a site-by-site basis.
 Each site folder can be independently annotated with any combination of tissue types, represented as checkboxes.
 If desired, each site folder can also be annotated with tumor labels (normal, normal-adjacent, tumor-adjacent, or tumor) based on what is visible in the scans.
+Lastly, some miscellaneous other attributes and a generic text comment box are available.
 The annotations are saved per folder in `annotations.csv`. 
 Each tissue type or tumor label is formatted as a column in the CSV, with binary entries.
 
@@ -68,5 +69,5 @@ Most deviations from expected structure are not handled gracefully.
 
 # Possible features to add
 - [ ] False color scale
-- [ ] Log color scale
 - [ ] Multiple channels for various contrasts
+- [ ] Link to histology slides
