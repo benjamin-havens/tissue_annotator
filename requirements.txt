@@ -1,2 +1,5 @@
-pillow
-pandas
+numpy==2.3.1
+ome-types==0.6.1
+pandas==2.2.3
+pillow==11.2.1
+tifffile==2025.6.11
