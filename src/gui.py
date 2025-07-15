@@ -1,18 +1,3 @@
-"""
-tissue_annotator.py
-
-Tissue annotation GUI.
-
-Architecture
-------------
-- `Config`: centralised constants.
-- `ImageSequence`: wrapper around microscopy frames.
-- `MetadataExtractor`: static helpers for OME-TIFF meta-data.
-- `AnnotationManager`: handles CSV persistence of labels.
-- `FolderNavigator`: discovers and iterates labellable folders.
-- `TissueAnnotatorApp`: Tk application composing the above.
-"""
-
 import os
 import tkinter as tk
 from pathlib import Path
@@ -67,6 +52,9 @@ class TissueAnnotatorGUI(tk.Tk):
 
         # Build UI ------------------------------------------------------ #
         self._build_ui()
+        # Track window resize events to rescale the preview dynamically
+        self._prev_size = (self.winfo_width(), self.winfo_height())
+        self.bind("<Configure>", self._on_window_resize)
         self._load_folder()
 
     # ------------------------------------------------------------------ #
@@ -76,6 +64,8 @@ class TissueAnnotatorGUI(tk.Tk):
     # Fit main window to available screen height                         #
     # ------------------------------------------------------------------ #
     def _fit_to_screen(self):
+        # Ensure widget sizes are updated before we query them
+        self.update_idletasks()
         scr_h = self.winfo_screenheight()
         scr_w = self.winfo_screenwidth()
         win_w = self.winfo_width()
@@ -92,7 +82,6 @@ class TissueAnnotatorGUI(tk.Tk):
         self._build_image_panel()
         self._build_annotation_panel()
         self._build_control_panel()
-        self.update_idletasks()
         self._fit_to_screen()
 
     def _build_info_panel(self):
@@ -188,7 +177,7 @@ class TissueAnnotatorGUI(tk.Tk):
         tissue.pack(side="left", fill="both", expand=True, padx=(0, 5))
         for i, t in enumerate(CONFIG.TISSUE_TYPES):
             ttk.Checkbutton(tissue, text=t, variable=self.var_tissue[t]).grid(
-                row=i // 5, column=i % 5, sticky="w", padx=5
+                row=i // 4, column=i % 4, sticky="w", padx=5
             )
 
         # Clinical classification
@@ -234,6 +223,18 @@ class TissueAnnotatorGUI(tk.Tk):
         ttk.Button(ctrl, text="Next Folder →", command=self._next_folder).pack(
             side="left", padx=5
         )
+
+    # ------------------------------------------------------------------ #
+    #             WINDOW RESIZE — ADAPT IMAGE TO NEW GEOMETRY
+    # ------------------------------------------------------------------ #
+    def _on_window_resize(self, event):
+        # Only react to size changes of the top‑level window
+        if event.widget is self:
+            new_size = (event.width, event.height)
+            if new_size != getattr(self, "_prev_size", None):
+                self._prev_size = new_size
+                # Re‑render image after idle so geometry managers settle
+                self.after_idle(self._show_image)
 
     # ------------------------------------------------------------------ #
     #            STATE — CLINICAL CLASSIFICATION CHECK-BOXES
@@ -294,7 +295,48 @@ class TissueAnnotatorGUI(tk.Tk):
                 norm = arr  # all-zero fallback
             img = Image.fromarray((norm.clip(0, 1) * 255).astype(np.uint8))
 
-        img.thumbnail(CONFIG.THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+        # Re‑calculate the maximum drawable area based on the *current* window size
+        # Detect first draw when the window hasn't been realized yet (size ≈ 1×1).
+        first_draw = self.winfo_width() < 100 or self.winfo_height() < 100
+        self.update_idletasks()  # ensure geometry info is current
+
+        scr_w = self.winfo_screenwidth()
+        scr_h = self.winfo_screenheight()
+        # Use whichever is larger: the actual window size or the size requested
+        # by the geometry manager.  This prevents the initial draw from thinking
+        # the window is 1×1 before it appears on‑screen.
+        win_w = max(self.winfo_width(), self.winfo_reqwidth())
+        win_h = max(self.winfo_height(), self.winfo_reqheight())
+
+        # Height taken by widgets other than the image (independent of window scaling)
+        used_h = self.winfo_reqheight() - self.lbl_img.winfo_reqheight()
+
+        h_margin = 40  # horizontal padding to stay clear of window edges
+        v_margin = 40  # vertical padding
+        # On the very first draw (before geometry is realized) fall back to a
+        # generous default area so the preview isn't shrunk to 1×1 px.
+        if first_draw:
+            win_w = scr_w - h_margin
+            win_h = scr_h - v_margin
+
+        # ------------------------------------------------------------------
+        # Drawable area remaining for the preview image
+        # ------------------------------------------------------------------
+        # If the metadata panel (or other widgets) occupies all vertical
+        # space, the previous calculation could return 0 px, causing the
+        # thumbnail operation to shrink the preview on every Configure event
+        # until it disappeared.  Clamp both dimensions to a small positive
+        # value to break that feedback loop.
+        MIN_PREVIEW_PX = 256  # minimum width/height for the preview
+
+        available_w = max(MIN_PREVIEW_PX, min(win_w - h_margin, scr_w - h_margin))
+        available_h = max(
+            MIN_PREVIEW_PX, min(win_h - v_margin - used_h, scr_h - v_margin - used_h)
+        )
+
+        # Down‑scale only if the image actually exceeds the drawable area
+        if img.width > available_w or img.height > available_h:
+            img.thumbnail((available_w, available_h), Image.Resampling.LANCZOS)
         self._tk_img = ImageTk.PhotoImage(img)
         self.lbl_img.config(image=self._tk_img)
 
@@ -319,7 +361,8 @@ class TissueAnnotatorGUI(tk.Tk):
             self.txt_metadata.insert(tk.END, f"{k}: {v}\n")
         self.txt_metadata.config(state="disabled")
         # keep window within the visible screen even when image size pushes it
-        self._fit_to_screen()
+        # Defer resize until idle so geometry managers have updated widget sizes
+        self.after_idle(self._fit_to_screen)
 
     # ------------------------------------------------------------------ #
     #                        FOLDER NAVIGATION
