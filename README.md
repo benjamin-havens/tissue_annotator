@@ -10,7 +10,7 @@ Assuming Python 3.12 is accessible from the command line as `python`, you can ru
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python tissue_annotator.py
+python main.py
 ```
 
 The program expects a file structure like
@@ -66,8 +66,4 @@ These can be updated or the folder can be skipped.
 
 # Caveats
 Most deviations from expected structure are not handled gracefully.
-
-# Possible features to add
-- [ ] False color scale
-- [ ] Multiple channels for various contrasts
-- [ ] Link to histology slides
+The main exception is 3D TIFF volumes, which are quietly supported (they can be quite a bit slower).
