@@ -1,83 +1,91 @@
 import json
+from typing import TypedDict, Union, Literal
+import datetime
 
 import tifffile
 from ome_types import from_xml
+
+
+class SampleMetadata(TypedDict, total=False):
+    sample_id: str
+    subsample_id: Union[str, None]
+    patient_id: str
+    patient_age: Union[int, None]
+    patient_sex: Literal["female", "male"]
+    organ: Literal["breast", "lung", "liver", "pancreas", "No Match"]
+    designation: Literal["Tumor", "Normal Adjacent", "Uninvolved", "No Match"]
+    metastatic: bool
+    primary: bool
+    arrival_date: datetime.date
+    acq_datetime: datetime.datetime
+    agency: Literal["CHTN", "NDRI"]
 
 
 class MetadataExtractor:
     """Static helpers for best-effort OME-TIFF metadata extraction."""
 
     @staticmethod
+    def _extract_sample_metadata(ome):
+        """Extract sample metadata from OME-TIFF."""
+        sample_metadata = SampleMetadata()
+
+        if ome.structured_annotations and ome.structured_annotations.map_annotations:
+            for annotation in ome.structured_annotations.map_annotations:
+                if annotation.namespace == "custom.sample.metadata":
+                    for m in annotation.value.ms:
+                        key = m.k
+                        if key in ["sample_id", "subsample_id"]:
+                            value = m.value.replace("_", "-").upper()
+                        elif key in ["metastatic", "primary"]:
+                            value = bool(m.value.lower() == "true")
+                        elif key in ["patient_age"]:
+                            value = int(m.value)
+                        elif key in ["patient_sex"]:
+                            value = m.value.lower()
+                        else:
+                            value = m.value
+                        sample_metadata[key] = value
+        return sample_metadata
+
+    @staticmethod
+    def _extract_image_parameters(ome):
+        imaging_params = {}
+        if ome.images and ome.images[0].pixels:
+            pixels = ome.images[0].pixels
+            imaging_params = {
+                "dimension_order": (
+                    pixels.dimension_order.value if pixels.dimension_order else None
+                ),
+                "size_x": pixels.size_x,
+                "size_y": pixels.size_y,
+                "size_z": pixels.size_z,
+                "size_c": pixels.size_c,
+                "size_t": pixels.size_t,
+                "type": pixels.type,
+                "physical_size_x": pixels.physical_size_x,
+                "physical_size_y": pixels.physical_size_y,
+                "physical_size_z": pixels.physical_size_z,
+                "channels": (
+                    [ch.name for ch in pixels.channels] if pixels.channels else []
+                ),
+            }
+        return imaging_params
+
+    @staticmethod
     def extract(path):
-        if not tifffile:
-            return {}
         md = {}
+
         try:
             with tifffile.TiffFile(path) as tif:
                 md["pages"] = str(len(tif.pages))
                 md["dtype"] = str(tif.series[0].dtype) if tif.series else ""
-                # ImageDescription can live in various places
-                page0 = tif.pages[0]
-                if "ImageDescription" in page0.tags:
-                    desc = page0.tags["ImageDescription"].value
-                else:
-                    desc = getattr(page0, "description", None)
-                ome_xml = desc.decode() if isinstance(desc, bytes) else desc
-        except Exception as e:
-            md["error"] = str(e)
-            return md
-        if ome_xml and from_xml and ome_xml.strip().startswith("<?xml"):
-            try:
+                ome_xml = tif.pages[0].description
                 ome = from_xml(ome_xml)
-                img0 = ome.images[0] if ome.images else None
-                if img0:
-                    p = img0.pixels
-                    md.update(
-                        {
-                            "SizeX": p.size_x,
-                            "SizeY": p.size_y,
-                            "SizeZ": p.size_z,
-                            "VoxelSizeX": p.physical_size_x,
-                            "VoxelSizeY": p.physical_size_y,
-                            "VoxelSizeZ": p.physical_size_z,
-                            "DimensionOrder": (
-                                p.dimension_order.value if p.dimension_order else ""
-                            ),
-                        }
-                    )
-                    # extra pixel info
-                    md["SizeC"] = p.size_c
-                    md["SizeT"] = p.size_t
-                    md["PixelType"] = p.type.value if p.type else ""
-                    md["Channels"] = ", ".join(
-                        [ch.name or f"Ch{i}" for i, ch in enumerate(p.channels)]
-                    )
+        except Exception as e:
+            md["error"] = f"Failed to read OME-TIFF: {e}"
+            return md
 
-                    # gather any MapAnnotation / XMLAnnotation key‑values
-                    sa = getattr(ome, "structured_annotations", None)
-                    if sa:
-                        for ann in sa:
-                            # MapAnnotation: ann.value is list[KeyValuePair]
-                            if hasattr(ann, "value") and isinstance(ann.value, list):
-                                first = ann.value[0] if ann.value else None
-                                if (
-                                    first
-                                    and hasattr(first, "key")
-                                    and hasattr(first, "value")
-                                ):
-                                    for kv in ann.value:
-                                        md[str(kv.key)] = str(kv.value)
-                                    continue
-                            # XMLAnnotation: attempt JSON decode
-                            if hasattr(ann, "value") and isinstance(ann.value, str):
-                                try:
-                                    data = json.loads(ann.value)
-                                    if isinstance(data, dict):
-                                        md.update(
-                                            {str(k): str(v) for k, v in data.items()}
-                                        )
-                                except Exception:
-                                    pass
-            except Exception as e:
-                md["ome_parse_error"] = str(e)
-        return md
+        sample_metadata = MetadataExtractor._extract_sample_metadata(ome)
+        imaging_params = MetadataExtractor._extract_image_parameters(ome)
+
+        return md | sample_metadata | imaging_params
