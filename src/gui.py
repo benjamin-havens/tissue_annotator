@@ -101,7 +101,7 @@ class TissueAnnotatorGUI(tk.Tk):
         self.lbl_path.grid(row=4, column=0, sticky="w")
 
         # clipboard button
-        ttk.Button(info, text="Copy path 📋", command=self._copy_path).grid(
+        ttk.Button(info, text="Copy path", command=self._copy_path).grid(
             row=0, column=1, rowspan=2, padx=10
         )
 
@@ -139,14 +139,14 @@ class TissueAnnotatorGUI(tk.Tk):
         viewer.grid(row=0, column=1)
         panel.grid_columnconfigure(1, weight=1)
 
-        self.btn_prev = ttk.Button(viewer, text="◀ Prev", command=self._prev_image)
+        self.btn_prev = ttk.Button(viewer, text="Prev", command=self._prev_image)
         self.btn_prev.grid(row=0, column=0)
 
         self.lbl_img = ttk.Label(viewer, anchor="center")
         self.lbl_img.grid(row=0, column=1)
         self.lbl_img.bind("<MouseWheel>", self._on_mousewheel)
 
-        self.btn_next = ttk.Button(viewer, text="Next ▶", command=self._next_image)
+        self.btn_next = ttk.Button(viewer, text="Next", command=self._next_image)
         self.btn_next.grid(row=0, column=2)
 
         # ------- Colour scaling -----
@@ -220,7 +220,7 @@ class TissueAnnotatorGUI(tk.Tk):
         ttk.Button(ctrl, text="Skip Folder", command=self._skip_folder).pack(
             side="left", padx=5
         )
-        ttk.Button(ctrl, text="Next Folder →", command=self._next_folder).pack(
+        ttk.Button(ctrl, text="Save and next", command=self._next_folder).pack(
             side="left", padx=5
         )
 
